@@ -4,6 +4,8 @@
 
 **Phase 1 as-run (2026-05-14):** see **[PHASE1_DISCOVERY_AS_RUN.md](PHASE1_DISCOVERY_AS_RUN.md)** — live inventory (Docker services, ports **`5434`/`6380`**, Caddy **in container**, `/opt/orbit` vs `/opt/optionsbot`).
 
+**Change safety (frozen containers, paths, prune rules):** **[NORTHSTAR_SAFE_CHANGES.md](NORTHSTAR_SAFE_CHANGES.md)** — **mandatory** before teardown, compose edits, or API replacement.
+
 Companion references on your machine (not shipped inside FabioOrb):
 
 - Moomoo / OpenD / SDK SSOT: `/Users/donnaile/dev/ORB/docs/MOOMOO_COMMAND_LANGUAGE_SSOT.md`

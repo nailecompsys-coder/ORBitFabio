@@ -41,3 +41,5 @@
 ## Next step
 
 Phase 2 (teardown) only after an explicit decision: **target layout** (`/opt/orbit` only vs coexist with `optionsbot`) and **whether `project-go-mcp-stack` stays**.
+
+**Hard guardrails:** see [NORTHSTAR_SAFE_CHANGES.md](NORTHSTAR_SAFE_CHANGES.md) — do **not** run global Docker prune or remove frozen containers.

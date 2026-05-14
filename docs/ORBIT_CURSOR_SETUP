@@ -12,6 +12,15 @@ Do not skip the teardown phase. Leftover services cause port conflicts and confi
 
 Northstar IP: 192.168.1.116 Domain: trading.clermontitstore.com Stack: Ubuntu 24.04 | Docker | PostgreSQL | FastAPI | Caddy | React | Expo RN
 
+================================================================================
+STOP — FROZEN PROD ASSETS (2026-05-14)
+Before PHASE 2 teardown, docker prune, or "remove all containers", read:
+  docs/NORTHSTAR_SAFE_CHANGES.md
+DO NOT: docker system prune; remove-all-containers; touch orbit-postgres-1,
+  orbit-redis-1, orbit-ovtlyr-browser-1, orbit-caddy-1, project-go-mcp-stack-api,
+  project-go-mcp-stack-worker; delete /opt/orbit/scripts/ or /opt/orbit/postgres/data/
+================================================================================
+
 
 PHASE 1 — DISCOVERY (run first, read output before touching anything)
 SSH into Northstar and run this full discovery block. Paste the output into the chat so we know exactly what's running before we kill anything.

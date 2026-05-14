@@ -7,7 +7,7 @@ Single source of truth for where things run, how prod is deployed, and how iOS b
 | Layer | Where |
 |--------|--------|
 | **DEV** | This Mac (local Xcode, iOS Simulator, Cursor). Day-to-day development and TestFlight archive prep happen here. |
-| **PROD** | **`192.168.1.116`** — SSH **`ncs@192.168.1.116`**. Primary Docker stack lives under **`/opt/orbit`** (Caddy on **:80/:443**, API, Postgres on host **127.0.0.1:5434**, Redis **6380**, etc.). **`/opt/optionsbot`** still exists (legacy CAL path). Inventory: **[PHASE1_DISCOVERY_AS_RUN.md](PHASE1_DISCOVERY_AS_RUN.md)**; checklist: **[PROD_NORTHSTAR_STACK.md](PROD_NORTHSTAR_STACK.md)**. |
+| **PROD** | **`192.168.1.116`** — SSH **`ncs@192.168.1.116`**. Primary Docker stack under **`/opt/orbit`**. **Safety policy (do not prune / frozen containers):** [NORTHSTAR_SAFE_CHANGES.md](NORTHSTAR_SAFE_CHANGES.md). Inventory: [PHASE1_DISCOVERY_AS_RUN.md](PHASE1_DISCOVERY_AS_RUN.md); checklist: [PROD_NORTHSTAR_STACK.md](PROD_NORTHSTAR_STACK.md). |
 
 **Scope on `192.168.1.116`:** In scope = **this product’s Northstar stack** (OpenD + bot + frontend + DB/API as deployed). Out of scope = unrelated apps or machines you do not treat as part of this product’s prod.
 

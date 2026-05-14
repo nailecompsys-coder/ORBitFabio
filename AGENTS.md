@@ -2,6 +2,8 @@
 
 Use this file when implementing or verifying builds. Human-oriented details live in [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md).
 
+**Northstar (`192.168.1.116`):** Before SSH, Docker, or teardown, read [docs/NORTHSTAR_SAFE_CHANGES.md](docs/NORTHSTAR_SAFE_CHANGES.md). Do **not** run `docker system prune`, remove all containers, or touch frozen services listed there.
+
 ## Layout
 
 | Path | Role |
@@ -10,6 +12,7 @@ Use this file when implementing or verifying builds. Human-oriented details live
 | `apps/mobile/ios/` | Native iOS — open **`OrbitFabio.xcworkspace`** (not the `.xcodeproj`). |
 | `docs/ENVIRONMENT.md` | DEV/PROD hosts, Apple Team ID, GitHub, deploy commands. |
 | `docs/PROD_NORTHSTAR_STACK.md` | **Prod on 192.168.1.116:** OpenD + Moomoo bot + frontend + Docker/Postgres expectations. |
+| `docs/NORTHSTAR_SAFE_CHANGES.md` | **Frozen containers / paths** and what is safe to replace (FABIO API, compose, Caddy config, Python code). |
 
 ## Fresh clone — install
 

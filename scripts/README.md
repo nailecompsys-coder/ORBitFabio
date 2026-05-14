@@ -2,6 +2,8 @@
 
 Read-only inventory. Source: `docs/ORBIT_CURSOR_SETUP` Phase 1.
 
+**Before any Phase 2 / teardown / Docker cleanup:** [docs/NORTHSTAR_SAFE_CHANGES.md](../docs/NORTHSTAR_SAFE_CHANGES.md).
+
 ## Run (from your Mac, same LAN as Northstar)
 
 Use the SSH user that actually works on your box (`ncs` or `ubuntu` per your server):
