@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api import auth
+from api import auth, users
 from api.db import close_db, health_check_db, health_check_redis, init_db
 
 ALLOWED_ORIGINS = [
@@ -35,7 +35,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix="/auth")
+app.include_router(auth.router, prefix="/api/auth")
+app.include_router(users.router, prefix="/api/users")
 
 
 @app.get("/health", response_model=None)

@@ -21,7 +21,37 @@ docker compose up -d --build api
 docker compose exec api curl -sf http://127.0.0.1:8000/health
 ```
 
-**Gate:** last command returns JSON with `"status":"ok"` and exit code **0** (HTTP **200**). The API is not on the host loopback; use `docker compose exec api …` as above.
+**Gate (health):** last command returns JSON with `"status":"ok"` and exit code **0** (HTTP **200**). The API is not on the host loopback; use `docker compose exec api …` as above.
+
+## Phase 2 — Auth (public URL + curl)
+
+Routes are under **`/api`** (matches Caddy `reverse_proxy /api/*`).
+
+**Gate — request OTP** (replace phone; use `-k` only if TLS is self-signed):
+
+```bash
+curl -sS -X POST "https://trading.clermontitstore.com/api/auth/request-otp" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+1YOUR_PHONE"}'
+# Expect: {"sent":true}
+# SMS via TextBelt if TEXTBELT_KEY is set; else OTP in: docker compose logs api --tail 20
+```
+
+**Verify OTP** (use code from SMS or logs):
+
+```bash
+curl -sS -X POST "https://trading.clermontitstore.com/api/auth/verify-otp" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+1YOUR_PHONE","code":"123456"}'
+# Expect: {"token":"...","user_id":"..."}
+```
+
+**Current user** (Bearer JWT from verify step):
+
+```bash
+curl -sS "https://trading.clermontitstore.com/api/users/me" \
+  -H "Authorization: Bearer YOUR_JWT"
+```
 
 Merge the **`api:`** block from `orbit/docker-compose.yml` into server `/opt/orbit/docker-compose.yml` if you need `TEXTBELT_KEY` or longer `start_period` (already set to **60s** here for migrations).
 
@@ -30,4 +60,4 @@ Merge the **`api:`** block from `orbit/docker-compose.yml` into server `/opt/orb
 - `api/` — FastAPI app, Dockerfile, `entrypoint.sh` (migrations + uvicorn)
 - `migrations/001_initial.sql` — schema
 
-If `TEXTBELT_KEY` is unset, `POST /auth/request-otp` logs the OTP to container stdout.
+If `TEXTBELT_KEY` is unset, `POST /api/auth/request-otp` logs the OTP to container stdout.

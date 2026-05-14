@@ -24,11 +24,11 @@ TEXTBELT_KEY = os.environ.get("TEXTBELT_KEY", "")
 
 
 class OtpRequest(BaseModel):
-    phone: str = Field(..., min_length=10, max_length=20)
+    phone: str = Field(..., min_length=10, max_length=32)
 
 
 class OtpVerify(BaseModel):
-    phone: str = Field(..., min_length=10, max_length=20)
+    phone: str = Field(..., min_length=10, max_length=32)
     code: str = Field(..., min_length=4, max_length=10)
 
 
@@ -75,7 +75,7 @@ async def request_otp(body: OtpRequest) -> dict[str, bool]:
             if r.status_code != 200:
                 raise HTTPException(502, "SMS provider error")
             data = r.json()
-            if not data.get("success") and data.get("quotaRemaining") is None:
+            if data.get("success") is not True:
                 raise HTTPException(502, f"SMS rejected: {data}")
 
     return {"sent": True}
