@@ -25,12 +25,12 @@ docker compose exec api curl -sf http://127.0.0.1:8000/health
 
 ## Phase 2 — Auth (public URL + curl)
 
-Routes are under **`/api`** (matches Caddy `reverse_proxy /api/*`).
+Auth routes are **`/auth/*`** on the API. User profile stays under **`/api/users/*`**. If Caddy only proxies `/api/*`, add a route for `/auth/*` (or call the API port directly for testing).
 
 **Gate — request OTP** (replace phone; use `-k` only if TLS is self-signed):
 
 ```bash
-curl -sS -X POST "https://trading.clermontitstore.com/api/auth/request-otp" \
+curl -sS -X POST "https://trading.clermontitstore.com/auth/request-otp" \
   -H "Content-Type: application/json" \
   -d '{"phone":"+1YOUR_PHONE"}'
 # Expect: {"sent":true}
@@ -40,7 +40,7 @@ curl -sS -X POST "https://trading.clermontitstore.com/api/auth/request-otp" \
 **Verify OTP** (use code from SMS or logs):
 
 ```bash
-curl -sS -X POST "https://trading.clermontitstore.com/api/auth/verify-otp" \
+curl -sS -X POST "https://trading.clermontitstore.com/auth/verify-otp" \
   -H "Content-Type: application/json" \
   -d '{"phone":"+1YOUR_PHONE","code":"123456"}'
 # Expect: {"token":"...","user_id":"..."}
@@ -60,4 +60,4 @@ Merge the **`api:`** block from `orbit/docker-compose.yml` into server `/opt/orb
 - `api/` — FastAPI app, Dockerfile, `entrypoint.sh` (migrations + uvicorn)
 - `migrations/001_initial.sql` — schema
 
-If `TEXTBELT_KEY` is unset, `POST /api/auth/request-otp` logs the OTP to container stdout.
+If `TEXTBELT_KEY` is unset, `POST /auth/request-otp` logs the OTP to container stdout.
