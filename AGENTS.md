@@ -9,6 +9,7 @@ Use this file when implementing or verifying builds. Human-oriented details live
 | `apps/mobile/` | Expo SDK 54 + React Native (TypeScript). |
 | `apps/mobile/ios/` | Native iOS — open **`OrbitFabio.xcworkspace`** (not the `.xcodeproj`). |
 | `docs/ENVIRONMENT.md` | DEV/PROD hosts, Apple Team ID, GitHub, deploy commands. |
+| `docs/PROD_NORTHSTAR_STACK.md` | **Prod on 192.168.1.116:** OpenD + Moomoo bot + frontend + Docker/Postgres expectations. |
 
 ## Fresh clone — install
 

@@ -7,9 +7,9 @@ Single source of truth for where things run, how prod is deployed, and how iOS b
 | Layer | Where |
 |--------|--------|
 | **DEV** | This Mac (local Xcode, iOS Simulator, Cursor). Day-to-day development and TestFlight archive prep happen here. |
-| **PROD** | **`192.168.1.116`** only — SSH as **`ncs@192.168.1.116`**. Server workload for this product lives under **`/opt/optionsbot`** (Docker Compose). |
+| **PROD** | **`192.168.1.116`** — SSH **`ncs@192.168.1.116`**. This host runs **Moomoo OpenD**, the **trading bot** (Docker under **`/opt/optionsbot`**), the **web frontend**, and any backing services (e.g. **PostgreSQL**) defined in that environment. Canonical checklist: **[PROD_NORTHSTAR_STACK.md](PROD_NORTHSTAR_STACK.md)**. |
 
-**Scope on `192.168.1.116`:** Document and operate **only this product’s stack** plus the **host baseline** (OS, Docker engine, disk, SSH, LAN/firewall as needed). Other services on the same machine are out of scope for this project’s runbook.
+**Scope on `192.168.1.116`:** In scope = **this product’s Northstar stack** (OpenD + bot + frontend + DB/API as deployed). Out of scope = unrelated apps or machines you do not treat as part of this product’s prod.
 
 ## Apple Developer and iOS app identity
 
@@ -40,20 +40,22 @@ Xcode: set **Signing & Capabilities** to this team; use **Automatic** signing un
 
 ## PROD server (Northstar)
 
+**Read first:** [PROD_NORTHSTAR_STACK.md](PROD_NORTHSTAR_STACK.md) — OpenD + bot + frontend + Postgres (if present). This section is the short operational slice.
+
 **Access**
 
 ```bash
 ssh ncs@192.168.1.116
 ```
 
-**Deploy this product** (Don-initiated or explicit release only — align with your team policy):
+**Deploy bot / compose stack** (Don-initiated or explicit release only — align with your team policy):
 
 ```bash
 cd /opt/optionsbot
 docker compose up -d --build
 ```
 
-**Optional host baseline** (confirms the machine can run this stack; does not imply owning other tenants):
+**Host baseline** (Docker, disk, OS):
 
 ```bash
 # On 192.168.1.116 after SSH
@@ -63,7 +65,7 @@ docker compose version
 df -h
 ```
 
-Cross-reference: sibling project notes in `CAL/cal-app/.cursor/rules/build_app.md` (Northstar section).
+**Cross-references:** `/Users/donnaile/dev/CAL/cal-app/.cursor/rules/build_app.md` (Northstar one-liner); Moomoo/OpenD: `/Users/donnaile/dev/ORB/README.md`, `/Users/donnaile/dev/ORB/docs/MOOMOO_COMMAND_LANGUAGE_SSOT.md`.
 
 ## Mac dev machine checklist
 
@@ -104,4 +106,4 @@ cd ORBitFabio   # or rename checkout folder to FabioOrb if you prefer
 | Environment | Base URL / notes |
 |-------------|------------------|
 | DEV | `________________` (localhost, LAN IP of this Mac, or tunnel) |
-| PROD | `________________` (service on `192.168.1.116` or front URL) |
+| PROD | `________________` — **web UI + API** on or in front of `192.168.1.116` (see [PROD_NORTHSTAR_STACK.md](PROD_NORTHSTAR_STACK.md); fill after inspecting live compose / nginx). |

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # OrbitFabio — agent quick reference
 
-- **Build / run iOS:** See repo root [AGENTS.md](../AGENTS.md) (install, `xcodebuild`, `expo run:ios`, Xcode workspace path).
-- **Where things run:** [docs/ENVIRONMENT.md](../docs/ENVIRONMENT.md).
+- **Build / run iOS:** See repo root [AGENTS.md](../../AGENTS.md) (install, `xcodebuild`, `expo run:ios`, Xcode workspace path).
+- **Where things run:** [docs/ENVIRONMENT.md](../../docs/ENVIRONMENT.md) and prod stack [docs/PROD_NORTHSTAR_STACK.md](../../docs/PROD_NORTHSTAR_STACK.md).
 - **Xcode:** Always **`apps/mobile/ios/OrbitFabio.xcworkspace`**, not the `.xcodeproj`.
 - **After `git clone`:** `cd apps/mobile && npm install && cd ios && pod install`.
