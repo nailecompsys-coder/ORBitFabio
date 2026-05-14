@@ -1,6 +1,5 @@
-# Snapshot from Northstar 192.168.1.116 — 2026-05-14
-# Canonical on server: /opt/orbit/docker-compose.yml
-# Project name: orbit (containers appear as orbit-<service>-1)
+# ORBit — matches Northstar layout; build context is this directory (/opt/orbit on server).
+# See docs/NORTHSTAR_SAFE_CHANGES.md before pruning or replacing services.
 
 name: orbit
 
@@ -61,10 +60,6 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-orbit-dev-secret-change-in-prod}
       TEXTBELT_KEY: ${TEXTBELT_KEY:-}
-      ORBIT_ADMIN_PASSWORD: ${ORBIT_ADMIN_PASSWORD:-orbitdev}
-      APEX_PARAMS_PATH: /app/apex_params.yaml
-      OVTLYR_INGEST_TOKEN: ${OVTLYR_INGEST_TOKEN:-}
-      OVTLYR_BROWSER_CDP_URL: http://ovtlyr-browser:9223
     depends_on:
       ovtlyr-browser:
         condition: service_started
