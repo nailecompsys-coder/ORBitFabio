@@ -19,6 +19,14 @@ ssh ubuntu@192.168.1.116 'bash -s' < scripts/phase1-discovery.sh | tee reports/p
 
 Paste the transcript into chat (or commit the `reports/` file if you want it in Git — **review for secrets first**).
 
+## Postgres tunnel (after Phase 1)
+
+Live Postgres listens on the server at **`127.0.0.1:5434`** (not 5432). Example tunnel to local **5433**:
+
+```bash
+ssh -L 5433:127.0.0.1:5434 ncs@192.168.1.116 -N
+```
+
 ## What failed here
 
 Automated SSH from the agent returned `Permission denied (publickey,password)` for both `ncs@` and `ubuntu@`. You need an interactive session, SSH agent with the right key, or `ssh-copy-id` for the user you use on `192.168.1.116`.

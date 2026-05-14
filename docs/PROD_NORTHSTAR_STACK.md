@@ -1,6 +1,8 @@
 # Northstar production stack (`192.168.1.116`)
 
-**This document removes ambiguity:** production for the options / Northstar product runs on **`ncs@192.168.1.116`**. That host must run **Moomoo OpenD**, the **trading bot** (Moomoo Python API), and the **web frontend**, together with whatever backing services your live `docker-compose` defines (for example **PostgreSQL**). Development stays on your Mac; this is the **prod** story only.
+**This document removes ambiguity:** production for the options / Northstar product runs on **`ncs@192.168.1.116`**. That host must run **Moomoo OpenD**, the **trading bot** (Moomoo Python API), and the **web frontend**, together with backing services (**PostgreSQL**, **Redis**, reverse proxy) as actually deployed.
+
+**Phase 1 as-run (2026-05-14):** see **[PHASE1_DISCOVERY_AS_RUN.md](PHASE1_DISCOVERY_AS_RUN.md)** — live inventory (Docker services, ports **`5434`/`6380`**, Caddy **in container**, `/opt/orbit` vs `/opt/optionsbot`).
 
 Companion references on your machine (not shipped inside FabioOrb):
 
@@ -34,38 +36,47 @@ Official and local doc pointers are in the ORB SSOT file above.
 
 ---
 
-## 2. Bot stack under `/opt/optionsbot` (required)
+## 2. Deploy roots on disk (Docker)
+
+**As of Phase 1 discovery:** the running stack (`orbit-api`, `orbit-caddy`, `orbit-postgres`, `orbit-redis`, `orbit-ovtlyr-browser`) is consistent with a compose project under **`/opt/orbit`**. **`/opt/optionsbot`** still exists (legacy CAL note); **`/opt/Orbit`** also present — confirm which repo owns which before editing.
+
+```bash
+cd /opt/orbit
+docker compose ps
+docker compose up -d --build   # Don-initiated only; align with team policy
+```
+
+Legacy path (only if your release still uses it):
 
 ```bash
 cd /opt/optionsbot
+docker compose ps
 docker compose up -d --build
 ```
 
-This directory is the **deploy root** for the trading bot and its **Docker** services. It is **not** optional for prod: compose brings up whatever images you ship (bot worker, API, etc.).
+After deploy: `docker compose logs -f <service>` using names from `docker compose ps`.
 
-After deploy: `docker compose ps`, `docker compose logs -f` (use the service names defined on the box).
-
----
-
-## 3. Web frontend (required for “full stack” prod)
-
-The **browser UI** for operators/traders is part of the same product story as the bot. In practice it is usually:
-
-- A **`web` / `portal` / `nginx`** service in the same compose project, or  
-- Static assets behind nginx on the host.
-
-**You must record** the HTTPS or HTTP URL (and port if not 443/80) in [ENVIRONMENT.md](ENVIRONMENT.md) under **API base URLs → PROD** (or a dedicated row for “Web UI”) once you read it off the live server.
+**Postgres from the host:** `127.0.0.1:5434` → container `5432` (not port 5432 on the host). **Redis:** `127.0.0.1:6380`.
 
 ---
 
-## 4. PostgreSQL (if your compose defines it)
+## 3. Web frontend and TLS
 
-Many stacks use **Postgres** for orders, state, or user data. If `docker-compose.yml` on `192.168.1.116` includes a `postgres` (or equivalent) service:
+**As observed:** **Caddy runs in Docker** (`orbit-caddy-1`), not as a host `systemd` unit. Public ports **80** and **443** are bound from that container.
 
-- Ensure **volumes** survive restarts.
-- Align **credentials** with bot/API `.env` on the server.
+Public URL (per [ORBIT_CURSOR_SETUP](ORBIT_CURSOR_SETUP)): **`https://trading.clermontitstore.com`** — confirm DNS points at this host and that Caddy’s config inside the compose project matches that hostname.
 
-If there is **no** Postgres service, document what you use instead (SQLite path, external DB host, etc.) when you discover it on the box.
+**Browser automation / VNC-style UI:** `orbit-ovtlyr-browser-1` exposes **`0.0.0.0:6080`** (treat as sensitive; firewall accordingly).
+
+---
+
+## 4. PostgreSQL and Redis (Docker)
+
+**Postgres:** `orbit-postgres-1`, image `postgres:16-alpine`, **healthy**, **`127.0.0.1:5434:5432`**. Align `.env` / SSH tunnels with **port 5434**, not 5432.
+
+**Redis:** `orbit-redis-1`, **`127.0.0.1:6380:6379`**.
+
+Ensure compose **volumes** and credentials match application `.env` on the server.
 
 ---
 
@@ -89,9 +100,10 @@ The iOS app in this repo calls **your HTTP API** using the **PROD** base URL you
 On `192.168.1.116` after SSH:
 
 1. OpenD GUI shows **logged in / green** (or equivalent healthy state).  
-2. `cd /opt/optionsbot && docker compose ps` — expected services **Up**.  
-3. From a browser on the LAN: **frontend** loads.  
-4. Hit **API health** (or one read-only endpoint) if you have one.  
-5. Bot log shows **quote/trade context** connected (no “cannot open quote context” loop — see ORB README troubleshooting).
+2. `cd /opt/orbit && docker compose ps` — **`orbit-api`**, **`orbit-caddy`**, **`orbit-postgres`**, **`orbit-redis`** (and siblings you expect) **Up / healthy**.  
+3. `docker ps` — decide whether **`project-go-mcp-stack-*`** on **:8080** is still required before any global teardown.  
+4. From a browser on the LAN: **frontend** loads (e.g. **`https://trading.clermontitstore.com`** if DNS is correct).  
+5. Hit **API health** (e.g. `/api/health` per ORBIT doc) through Caddy.  
+6. Bot log shows **quote/trade context** connected (no “cannot open quote context” loop — see ORB README troubleshooting).
 
 If any step fails, fix that layer before treating prod as “ready for Claude / Cursor to extend the app against.”

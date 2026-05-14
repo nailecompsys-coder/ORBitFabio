@@ -7,7 +7,7 @@ Single source of truth for where things run, how prod is deployed, and how iOS b
 | Layer | Where |
 |--------|--------|
 | **DEV** | This Mac (local Xcode, iOS Simulator, Cursor). Day-to-day development and TestFlight archive prep happen here. |
-| **PROD** | **`192.168.1.116`** — SSH **`ncs@192.168.1.116`**. This host runs **Moomoo OpenD**, the **trading bot** (Docker under **`/opt/optionsbot`**), the **web frontend**, and any backing services (e.g. **PostgreSQL**) defined in that environment. Canonical checklist: **[PROD_NORTHSTAR_STACK.md](PROD_NORTHSTAR_STACK.md)**. |
+| **PROD** | **`192.168.1.116`** — SSH **`ncs@192.168.1.116`**. Primary Docker stack lives under **`/opt/orbit`** (Caddy on **:80/:443**, API, Postgres on host **127.0.0.1:5434**, Redis **6380**, etc.). **`/opt/optionsbot`** still exists (legacy CAL path). Inventory: **[PHASE1_DISCOVERY_AS_RUN.md](PHASE1_DISCOVERY_AS_RUN.md)**; checklist: **[PROD_NORTHSTAR_STACK.md](PROD_NORTHSTAR_STACK.md)**. |
 
 **Scope on `192.168.1.116`:** In scope = **this product’s Northstar stack** (OpenD + bot + frontend + DB/API as deployed). Out of scope = unrelated apps or machines you do not treat as part of this product’s prod.
 
@@ -48,11 +48,14 @@ Xcode: set **Signing & Capabilities** to this team; use **Automatic** signing un
 ssh ncs@192.168.1.116
 ```
 
-**Deploy bot / compose stack** (Don-initiated or explicit release only — align with your team policy):
+**Deploy (pick the tree that matches your change)** — only after you confirm which compose project owns the service:
 
 ```bash
-cd /opt/optionsbot
-docker compose up -d --build
+# Primary ORBit stack (observed running containers from this tree)
+cd /opt/orbit && docker compose ps && docker compose up -d --build
+
+# Legacy optionsbot tree (still present on disk)
+cd /opt/optionsbot && docker compose ps && docker compose up -d --build
 ```
 
 **Host baseline** (Docker, disk, OS):
@@ -106,4 +109,4 @@ cd ORBitFabio   # or rename checkout folder to FabioOrb if you prefer
 | Environment | Base URL / notes |
 |-------------|------------------|
 | DEV | `________________` (localhost, LAN IP of this Mac, or tunnel) |
-| PROD | `________________` — **web UI + API** on or in front of `192.168.1.116` (see [PROD_NORTHSTAR_STACK.md](PROD_NORTHSTAR_STACK.md); fill after inspecting live compose / nginx). |
+| PROD | **`https://trading.clermontitstore.com`** (per [ORBIT_CURSOR_SETUP](ORBIT_CURSOR_SETUP); Caddy in Docker listens on **:443** — confirm DNS/LAN). API paths likely `/api/*` as in that doc. Postgres from host/tunnel: **`127.0.0.1:5434`** (not 5432). |

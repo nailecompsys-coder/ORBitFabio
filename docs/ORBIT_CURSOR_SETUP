@@ -1,0 +1,1688 @@
+ORBit FABIO — Clean Server Setup
+Cursor Instruction Set | Northstar | Full Stack + Git + EAS
+
+READ THIS FIRST
+This document does three things in order:
+
+Tears down everything currently on Northstar that conflicts
+Installs the clean environment (Docker, Postgres, Caddy, Node, Python)
+Creates the full project structure, Git repo, and EAS/TestFlight pipeline
+
+Do not skip the teardown phase. Leftover services cause port conflicts and config confusion. Clean slate first.
+
+Northstar IP: 192.168.1.116 Domain: trading.clermontitstore.com Stack: Ubuntu 24.04 | Docker | PostgreSQL | FastAPI | Caddy | React | Expo RN
+
+
+PHASE 1 — DISCOVERY (run first, read output before touching anything)
+SSH into Northstar and run this full discovery block. Paste the output into the chat so we know exactly what's running before we kill anything.
+
+#!/bin/bash
+
+echo "=== RUNNING SERVICES ==="
+
+systemctl list-units --type=service --state=running
+
+echo ""
+
+echo "=== DOCKER CONTAINERS ==="
+
+docker ps -a 2>/dev/null || echo "Docker not installed"
+
+echo ""
+
+echo "=== DOCKER VOLUMES ==="
+
+docker volume ls 2>/dev/null || echo "Docker not installed"
+
+echo ""
+
+echo "=== LISTENING PORTS ==="
+
+ss -tlnp
+
+echo ""
+
+echo "=== /opt CONTENTS ==="
+
+ls -la /opt/
+
+echo ""
+
+echo "=== EXISTING CADDY ==="
+
+which caddy && caddy version || echo "Caddy not installed"
+
+cat /etc/caddy/Caddyfile 2>/dev/null || echo "No Caddyfile found"
+
+echo ""
+
+echo "=== EXISTING NGINX ==="
+
+which nginx && nginx -v || echo "Nginx not installed"
+
+systemctl is-active nginx 2>/dev/null
+
+echo ""
+
+echo "=== EXISTING POSTGRES ==="
+
+which psql && psql --version || echo "Postgres not installed"
+
+systemctl is-active postgresql 2>/dev/null
+
+echo ""
+
+echo "=== EXISTING NODE/NPM ==="
+
+which node && node --version || echo "Node not installed"
+
+which npm && npm --version || echo "npm not installed"
+
+echo ""
+
+echo "=== EXISTING PYTHON ==="
+
+which python3 && python3 --version
+
+echo ""
+
+echo "=== /etc/systemd/system CUSTOM SERVICES ==="
+
+ls /etc/systemd/system/*.service 2>/dev/null | grep -v "snap\|getty\|multi\|network\|systemd"
+
+echo ""
+
+echo "=== CRONTABS ==="
+
+crontab -l 2>/dev/null || echo "No crontab"
+
+ls /etc/cron.d/ 2>/dev/null
+
+
+PHASE 2 — TEARDOWN
+Run each block. Confirm it completes before moving to the next.
+Stop and disable all custom services
+# Stop the trading bot if running
+
+systemctl stop optionsbot 2>/dev/null
+
+systemctl disable optionsbot 2>/dev/null
+
+systemctl stop northstar 2>/dev/null
+
+systemctl disable northstar 2>/dev/null
+
+# Stop any OpenD instances
+
+systemctl stop opend-clayton opend-don opend-chris 2>/dev/null
+
+systemctl disable opend-clayton opend-don opend-chris 2>/dev/null
+
+# Stop web servers
+
+systemctl stop caddy 2>/dev/null
+
+systemctl stop nginx 2>/dev/null
+
+# Stop any existing API or app services
+
+for svc in $(ls /etc/systemd/system/*.service 2>/dev/null); do
+
+    name=$(basename $svc .service)
+
+    case $name in
+
+        caddy|nginx|ssh|cron|ufw|fail2ban|docker|postgresql)
+
+            echo "Keeping system service: $name"
+
+            ;;
+
+        *)
+
+            echo "Stopping: $name"
+
+            systemctl stop $name 2>/dev/null
+
+            systemctl disable $name 2>/dev/null
+
+            ;;
+
+    esac
+
+done
+
+systemctl daemon-reload
+Remove old service files
+# Remove custom service files (keep system ones)
+
+rm -f /etc/systemd/system/opend-*.service
+
+rm -f /etc/systemd/system/optionsbot*.service
+
+rm -f /etc/systemd/system/northstar*.service
+
+rm -f /etc/systemd/system/orbit*.service
+
+systemctl daemon-reload
+Stop and remove all Docker containers and images
+# WARNING: This removes ALL containers, images, volumes on this server
+
+# If there are other projects in Docker, stop here and list them first:
+
+# docker ps -a && docker images
+
+# Remove all containers
+
+docker stop $(docker ps -aq) 2>/dev/null
+
+docker rm $(docker ps -aq) 2>/dev/null
+
+# Remove all images
+
+docker rmi $(docker images -q) 2>/dev/null
+
+# Remove all volumes EXCEPT any you want to keep
+
+# List them first: docker volume ls
+
+docker volume prune -f
+
+# Remove all networks except defaults
+
+docker network prune -f
+Remove old application directories
+# Check contents before removing
+
+ls -la /opt/optionsbot 2>/dev/null
+
+ls -la /opt/northstar 2>/dev/null
+
+# Remove old app directories
+
+rm -rf /opt/optionsbot
+
+rm -rf /opt/northstar
+
+# Remove old Caddy config
+
+rm -f /etc/caddy/Caddyfile
+
+# Remove old nginx configs (if any)
+
+rm -f /etc/nginx/sites-enabled/trading*
+
+rm -f /etc/nginx/sites-available/trading*
+
+echo "Teardown complete"
+Uninstall conflicting packages (if installed outside Docker)
+# Remove system-level Postgres if installed (we will use Docker)
+
+systemctl stop postgresql 2>/dev/null
+
+apt-get remove --purge postgresql* -y 2>/dev/null
+
+apt-get autoremove -y
+
+# Remove system-level nginx if installed (Caddy replaces it)
+
+systemctl stop nginx 2>/dev/null
+
+apt-get remove --purge nginx* -y 2>/dev/null
+
+apt-get autoremove -y
+
+echo "Package cleanup complete"
+
+
+PHASE 3 — CLEAN ENVIRONMENT INSTALL
+System update
+apt-get update && apt-get upgrade -y
+
+apt-get install -y \
+
+    curl wget git unzip build-essential \
+
+    software-properties-common apt-transport-https \
+
+    ca-certificates gnupg lsb-release \
+
+    python3 python3-pip python3-venv \
+
+    htop ufw fail2ban
+Docker (official install)
+# Remove any old Docker installs
+
+apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null
+
+# Add Docker's official GPG key
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+
+    | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Add Docker repo
+
+echo "deb [arch=$(dpkg --print-architecture) \
+
+    signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+
+    https://download.docker.com/linux/ubuntu \
+
+    $(lsb_release -cs) stable" \
+
+    | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker
+
+apt-get update
+
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Enable and start
+
+systemctl enable docker
+
+systemctl start docker
+
+# Add ubuntu user to docker group (avoids sudo on every docker command)
+
+usermod -aG docker ubuntu
+
+# Verify
+
+docker --version
+
+docker compose version
+Caddy (official install)
+# Add Caddy repo
+
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+
+    | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+
+    | tee /etc/apt/sources.list.d/caddy-stable.list
+
+apt-get update
+
+apt-get install -y caddy
+
+# Verify
+
+caddy version
+
+# Enable but don't start yet — we'll configure it first
+
+systemctl enable caddy
+Node.js 20 LTS (for React + Expo CLI)
+# Install via NodeSource
+
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+
+apt-get install -y nodejs
+
+# Verify
+
+node --version   # should be v20.x
+
+npm --version
+
+# Install global tools
+
+npm install -g yarn
+
+npm install -g @expo/eas-cli
+
+npm install -g expo-cli
+
+# Verify
+
+eas --version
+Python 3.11
+# Ubuntu 24 ships with 3.12 — install 3.11 for Moomoo compatibility
+
+# (moomoo-api recommends 3.11 for closest match to their CI)
+
+add-apt-repository ppa:deadsnakes/ppa -y
+
+apt-get update
+
+apt-get install -y python3.11 python3.11-venv python3.11-dev
+
+# Verify
+
+python3.11 --version
+UFW firewall rules
+ufw allow ssh
+
+ufw allow 80/tcp
+
+ufw allow 443/tcp
+
+ufw allow 8001/tcp    # FastAPI (internal, but useful for dev)
+
+# Moomoo OpenD ports — localhost only, no external access needed
+
+ufw enable
+
+ufw status
+
+
+PHASE 4 — POSTGRESQL VIA DOCKER
+Postgres runs in Docker. Clean, isolated, easy to backup and restore.
+
+# Create data directory on host for persistence
+
+mkdir -p /opt/orbit/postgres/data
+
+# Create the postgres container
+
+docker run -d \
+
+    --name orbit-postgres \
+
+    --restart unless-stopped \
+
+    -e POSTGRES_USER=orbit \
+
+    -e POSTGRES_PASSWORD=CHANGE_THIS_PASSWORD \
+
+    -e POSTGRES_DB=orbit \
+
+    -v /opt/orbit/postgres/data:/var/lib/postgresql/data \
+
+    -p 127.0.0.1:5432:5432 \
+
+    postgres:16-alpine
+
+# Verify
+
+docker ps | grep orbit-postgres
+
+docker exec -it orbit-postgres psql -U orbit -c "\l"
+
+Postgres is bound to 127.0.0.1 only — not accessible from outside the server.
+Run the schema
+docker exec -i orbit-postgres psql -U orbit orbit << 'EOF'
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+CREATE TABLE users (
+
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    phone        VARCHAR(20) UNIQUE NOT NULL,
+
+    display_name VARCHAR(100),
+
+    role         VARCHAR(20) DEFAULT 'trader',
+
+    is_active    BOOLEAN DEFAULT true,
+
+    created_at   TIMESTAMPTZ DEFAULT now()
+
+);
+
+CREATE TABLE otp_codes (
+
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    phone      VARCHAR(20) NOT NULL,
+
+    code       VARCHAR(10) NOT NULL,
+
+    expires_at TIMESTAMPTZ NOT NULL,
+
+    used       BOOLEAN DEFAULT false,
+
+    created_at TIMESTAMPTZ DEFAULT now()
+
+);
+
+CREATE TABLE user_credentials (
+
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    user_id           UUID REFERENCES users(id) ON DELETE CASCADE,
+
+    opend_port        INTEGER NOT NULL,
+
+    moomoo_account_id VARCHAR(50),
+
+    trd_env           VARCHAR(20) DEFAULT 'SIMULATE',
+
+    expo_push_token   VARCHAR(200),
+
+    connected_at      TIMESTAMPTZ DEFAULT now(),
+
+    UNIQUE(user_id)
+
+);
+
+CREATE TABLE bot_sessions (
+
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+
+    strategy   VARCHAR(50) DEFAULT 'FABIO',
+
+    status     VARCHAR(20) DEFAULT 'idle',
+
+    symbols    TEXT[] DEFAULT ARRAY['SPY','QQQ','NVDA'],
+
+    trd_env    VARCHAR(20) DEFAULT 'SIMULATE',
+
+    started_at TIMESTAMPTZ,
+
+    stopped_at TIMESTAMPTZ,
+
+    UNIQUE(user_id)
+
+);
+
+CREATE TABLE trades (
+
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    user_id      UUID REFERENCES users(id) ON DELETE CASCADE,
+
+    session_id   UUID REFERENCES bot_sessions(id),
+
+    symbol       VARCHAR(10) NOT NULL,
+
+    direction    VARCHAR(10) NOT NULL,
+
+    option_code  VARCHAR(50),
+
+    strike       NUMERIC,
+
+    expiry       DATE,
+
+    contracts    INTEGER,
+
+    entry_price  NUMERIC,
+
+    exit_price   NUMERIC,
+
+    entry_time   TIMESTAMPTZ,
+
+    exit_time    TIMESTAMPTZ,
+
+    exit_reason  VARCHAR(50),
+
+    pnl          NUMERIC,
+
+    return_pct   NUMERIC,
+
+    vix          NUMERIC,
+
+    or_atr_pct   NUMERIC,
+
+    vix_regime   VARCHAR(50),
+
+    day_color    VARCHAR(20),
+
+    trend        VARCHAR(20),
+
+    status       VARCHAR(20) DEFAULT 'open'
+
+);
+
+CREATE TABLE bot_events (
+
+    id         BIGSERIAL PRIMARY KEY,
+
+    user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+
+    event_type VARCHAR(50) NOT NULL,
+
+    payload    JSONB NOT NULL,
+
+    created_at TIMESTAMPTZ DEFAULT now()
+
+);
+
+CREATE INDEX idx_bot_events_user_time ON bot_events(user_id, created_at DESC);
+
+CREATE TABLE daily_summaries (
+
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    user_id      UUID REFERENCES users(id) ON DELETE CASCADE,
+
+    date         DATE NOT NULL,
+
+    total_trades INTEGER DEFAULT 0,
+
+    winners      INTEGER DEFAULT 0,
+
+    losers       INTEGER DEFAULT 0,
+
+    win_rate     NUMERIC,
+
+    net_pnl      NUMERIC,
+
+    gross_win    NUMERIC,
+
+    gross_loss   NUMERIC,
+
+    capital      NUMERIC,
+
+    daily_return NUMERIC,
+
+    proven_edge  NUMERIC,
+
+    UNIQUE(user_id, date)
+
+);
+
+EOF
+
+echo "Schema installed"
+
+docker exec -it orbit-postgres psql -U orbit -c "\dt"
+
+
+PHASE 5 — PROJECT FOLDER STRUCTURE
+mkdir -p /opt/orbit/{api,bot,opend/{clayton,don,chris},logs}
+
+cd /opt/orbit
+
+Final structure:
+
+/opt/orbit/
+
+├── api/                    ← FastAPI application
+
+│   ├── main.py
+
+│   ├── auth.py
+
+│   ├── users.py
+
+│   ├── bot_control.py
+
+│   ├── trades.py
+
+│   ├── ws.py
+
+│   ├── db.py
+
+│   └── models.py
+
+├── bot/                    ← FABIO strategy
+
+│   ├── fabio_bot.py
+
+│   ├── regime.py           ← verbatim from Clayton
+
+│   ├── signals.py          ← verbatim from Clayton
+
+│   ├── circuit.py          ← verbatim from Clayton
+
+│   ├── orders.py           ← verbatim from Clayton
+
+│   ├── handlers.py         ← NEW: push callbacks
+
+│   └── notifications.py    ← NEW: dual-write Sheets + DB
+
+├── opend/
+
+│   ├── clayton/            ← OpenD binary + OpenD.xml + Appdata.dat
+
+│   ├── don/
+
+│   └── chris/
+
+├── frontend/               ← React web portal (source lives in Git)
+
+│   └── dist/               ← built output, served by Caddy
+
+├── logs/
+
+├── postgres/
+
+│   └── data/               ← Docker volume mount
+
+├── .env
+
+├── requirements.txt
+
+├── Caddyfile
+
+└── docker-compose.yml
+
+
+PHASE 6 — DOCKER COMPOSE
+Use Docker Compose to manage Postgres. OpenD and the FastAPI bot run as systemd services (not Docker) because OpenD needs persistent file access and the bot needs to survive without Docker overhead.
+
+File: /opt/orbit/docker-compose.yml
+
+version: '3.9'
+
+services:
+
+  postgres:
+
+    image: postgres:16-alpine
+
+    container_name: orbit-postgres
+
+    restart: unless-stopped
+
+    environment:
+
+      POSTGRES_USER: orbit
+
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      POSTGRES_DB: orbit
+
+    volumes:
+
+      - ./postgres/data:/var/lib/postgresql/data
+
+    ports:
+
+      - "127.0.0.1:5432:5432"
+
+    healthcheck:
+
+      test: ["CMD-SHELL", "pg_isready -U orbit"]
+
+      interval: 10s
+
+      timeout: 5s
+
+      retries: 5
+
+networks:
+
+  default:
+
+    name: orbit-network
+
+cd /opt/orbit
+
+docker compose up -d
+
+docker compose ps
+
+
+PHASE 7 — PYTHON VIRTUAL ENVIRONMENT
+cd /opt/orbit
+
+python3.11 -m venv .venv
+
+source .venv/bin/activate
+
+pip install --upgrade pip
+
+pip install \
+
+    fastapi \
+
+    "uvicorn[standard]" \
+
+    "sqlalchemy[asyncio]" \
+
+    asyncpg \
+
+    alembic \
+
+    python-jose \
+
+    cryptography \
+
+    httpx \
+
+    pandas \
+
+    numpy \
+
+    python-dotenv \
+
+    "pydantic>=2.0" \
+
+    moomoo-api \
+
+    gspread \
+
+    google-auth
+
+pip freeze > requirements.txt
+
+
+PHASE 8 — ENVIRONMENT FILE
+File: /opt/orbit/.env
+
+# PostgreSQL
+
+POSTGRES_PASSWORD=CHANGE_THIS_STRONG_PASSWORD
+
+DATABASE_URL=postgresql+asyncpg://orbit:CHANGE_THIS_STRONG_PASSWORD@localhost:5432/orbit
+
+# Auth
+
+JWT_SECRET=GENERATE_WITH_OPENSSL_RAND_HEX_32
+
+TEXTBELT_KEY=your_textbelt_api_key
+
+# Moomoo
+
+MOOMOO_QUOTE_PORT=11111
+
+PAPER_TRADING=true
+
+# Google Sheets (Clayton's existing setup)
+
+GOOGLE_SHEETS_CREDENTIALS=/opt/orbit/secrets/google_credentials.json
+
+GOOGLE_SHEETS_ID=your_sheet_id
+
+# App
+
+ENVIRONMENT=production
+
+API_PORT=8001
+
+Generate the JWT secret:
+
+openssl rand -hex 32
+
+# Paste output into .env as JWT_SECRET
+
+# Protect the env file
+
+chmod 600 /opt/orbit/.env
+
+mkdir -p /opt/orbit/secrets
+
+chmod 700 /opt/orbit/secrets
+
+
+PHASE 9 — CADDY CONFIGURATION
+File: /etc/caddy/Caddyfile
+
+trading.clermontitstore.com {
+
+    # API routes
+
+    reverse_proxy /api/* localhost:8001
+
+    reverse_proxy /ws/*  localhost:8001
+
+    # Serve React web portal
+
+    root * /opt/orbit/frontend/dist
+
+    file_server
+
+    try_files {path} /index.html
+
+    # Security headers
+
+    header {
+
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+        X-Content-Type-Options nosniff
+
+        X-Frame-Options DENY
+
+        Referrer-Policy strict-origin-when-cross-origin
+
+    }
+
+    # Logging
+
+    log {
+
+        output file /opt/orbit/logs/caddy.log
+
+        format json
+
+    }
+
+}
+
+caddy validate --config /etc/caddy/Caddyfile
+
+systemctl restart caddy
+
+systemctl status caddy
+
+
+PHASE 10 — FASTAPI SYSTEMD SERVICE
+File: /etc/systemd/system/orbit-api.service
+
+[Unit]
+
+Description=ORBit FABIO API
+
+After=network.target docker.service
+
+Requires=docker.service
+
+[Service]
+
+Type=simple
+
+User=ubuntu
+
+Group=ubuntu
+
+WorkingDirectory=/opt/orbit
+
+EnvironmentFile=/opt/orbit/.env
+
+ExecStart=/opt/orbit/.venv/bin/uvicorn api.main:app \
+
+    --host 0.0.0.0 \
+
+    --port 8001 \
+
+    --workers 1 \
+
+    --log-level info
+
+Restart=always
+
+RestartSec=10
+
+StandardOutput=append:/opt/orbit/logs/api.log
+
+StandardError=append:/opt/orbit/logs/api.log
+
+[Install]
+
+WantedBy=multi-user.target
+
+systemctl daemon-reload
+
+systemctl enable orbit-api
+
+# Don't start yet — code needs to be deployed first
+
+
+PHASE 11 — GIT REPOSITORY SETUP
+On Northstar (server repo)
+cd /opt/orbit
+
+# Initialize git
+
+git init
+
+git branch -M main
+
+# Create .gitignore
+
+cat > .gitignore << 'EOF'
+
+# Environment
+
+.env
+
+.env.*
+
+secrets/
+
+*.key
+
+*.pem
+
+# Python
+
+.venv/
+
+__pycache__/
+
+*.pyc
+
+*.pyo
+
+*.pyd
+
+.Python
+
+*.egg-info/
+
+dist/
+
+build/
+
+# Node
+
+node_modules/
+
+frontend/dist/
+
+# Logs
+
+logs/
+
+*.log
+
+# OpenD (binaries + user data — never commit)
+
+opend/*/OpenD
+
+opend/*/Appdata.dat
+
+opend/*/logs/
+
+opend/*/cache/
+
+# Postgres data
+
+postgres/data/
+
+# Mac
+
+.DS_Store
+
+# IDE
+
+.cursor/
+
+.vscode/
+
+*.swp
+
+# Expo
+
+.expo/
+
+EOF
+
+# Initial commit
+
+git add .
+
+git commit -m "Initial ORBit FABIO project structure"
+Create GitHub remote repo
+# Install GitHub CLI if not present
+
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+
+    | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) \
+
+    signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+
+    https://cli.github.com/packages stable main" \
+
+    | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+
+apt-get update
+
+apt-get install -y gh
+
+# Authenticate (will prompt for browser or token)
+
+gh auth login
+
+# Create private repo and push
+
+gh repo create orbit-fabio \
+
+    --private \
+
+    --description "ORBit FABIO Trading Bot" \
+
+    --source=. \
+
+    --remote=origin \
+
+    --push
+Deploy key for server pulls (passwordless)
+# Generate deploy key on Northstar
+
+ssh-keygen -t ed25519 -C "northstar-deploy" \
+
+    -f /home/ubuntu/.ssh/orbit_deploy_key -N ""
+
+# Show public key — add this to GitHub repo Settings → Deploy Keys
+
+cat /home/ubuntu/.ssh/orbit_deploy_key.pub
+
+# Configure SSH to use deploy key for this repo
+
+cat >> /home/ubuntu/.ssh/config << 'EOF'
+
+Host github-orbit
+
+    HostName github.com
+
+    User git
+
+    IdentityFile /home/ubuntu/.ssh/orbit_deploy_key
+
+EOF
+
+# Update git remote to use deploy key alias
+
+git remote set-url origin git@github-orbit:YOUR_GITHUB_USERNAME/orbit-fabio.git
+
+# Test connection
+
+ssh -T github-orbit
+
+
+PHASE 12 — MAC DEV ENVIRONMENT SETUP
+Run these on your Mac (M4 Mac Mini).
+Clone the repo
+cd ~/Documents/TRADING
+
+git clone git@github.com:YOUR_GITHUB_USERNAME/orbit-fabio.git
+
+cd orbit-fabio
+Python environment (Mac)
+# Install pyenv if not present
+
+brew install pyenv
+
+pyenv install 3.11.9
+
+pyenv local 3.11.9
+
+# Create venv
+
+python3.11 -m venv .venv
+
+source .venv/bin/activate
+
+pip install -r requirements.txt
+Node environment (Mac)
+# Install Node 20 via nvm if not present
+
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+
+source ~/.nvm/nvm.sh
+
+nvm install 20
+
+nvm use 20
+
+# Global tools
+
+npm install -g yarn @expo/eas-cli expo-cli
+Local .env for Mac dev
+# Create local env pointing to Northstar DB via SSH tunnel
+
+cat > .env.local << 'EOF'
+
+# Tunnel Northstar Postgres to local port 5433:
+
+# ssh -L 5433:localhost:5432 ubuntu@192.168.1.116 -N
+
+DATABASE_URL=postgresql+asyncpg://orbit:PASSWORD@localhost:5433/orbit
+
+MOOMOO_QUOTE_PORT=11111
+
+# Moomoo OpenD must be running locally or tunneled for local dev
+
+# OpenD on Mac dev machine port 11111 or tunnel from Northstar
+
+JWT_SECRET=same_as_server
+
+TEXTBELT_KEY=your_key
+
+PAPER_TRADING=true
+
+EOF
+SSH tunnel for local dev (run in separate terminal)
+# Tunnel Postgres from Northstar to local port 5433
+
+ssh -L 5433:localhost:5432 ubuntu@192.168.1.116 -N
+
+# Keep this terminal open while developing
+Run API locally
+source .venv/bin/activate
+
+uvicorn api.main:app --reload --port 8001
+
+
+PHASE 13 — REACT WEB PORTAL SETUP
+cd /opt/orbit  # or ~/Documents/TRADING/orbit-fabio on Mac
+
+# Create Vite React app in frontend/
+
+npm create vite@latest frontend -- --template react
+
+cd frontend
+
+npm install
+
+# Install dependencies
+
+npm install \
+
+    axios \
+
+    react-router-dom \
+
+    recharts \
+
+    @tailwindcss/vite \
+
+    tailwindcss
+
+# Init Tailwind
+
+npx tailwindcss init -p
+
+# Configure vite.config.js for API proxy (local dev)
+
+cat > vite.config.js << 'EOF'
+
+import { defineConfig } from 'vite'
+
+import react from '@vitejs/plugin-react'
+
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+
+  plugins: [react(), tailwindcss()],
+
+  server: {
+
+    proxy: {
+
+      '/api': 'http://localhost:8001',
+
+      '/ws':  { target: 'ws://localhost:8001', ws: true }
+
+    }
+
+  },
+
+  build: {
+
+    outDir: '../frontend/dist',
+
+    emptyOutDir: true
+
+  }
+
+})
+
+EOF
+Deploy frontend to Northstar
+# On Mac after building
+
+npm run build
+
+# Commits dist/ to git, then on Northstar:
+
+git pull
+
+systemctl reload caddy
+
+Or add a deploy script:
+
+# deploy.sh (run from Mac)
+
+#!/bin/bash
+
+cd ~/Documents/TRADING/orbit-fabio/frontend
+
+npm run build
+
+cd ..
+
+git add frontend/dist
+
+git commit -m "Deploy frontend build"
+
+git push
+
+ssh ubuntu@192.168.1.116 "cd /opt/orbit && git pull && systemctl reload caddy"
+
+echo "Deployed to trading.clermontitstore.com"
+
+
+PHASE 14 — REACT NATIVE iOS APP + EAS
+# In project root
+
+mkdir mobile
+
+cd mobile
+
+# Create Expo app
+
+npx create-expo-app ORBitApp --template blank-typescript
+
+cd ORBitApp
+
+# Install dependencies
+
+npx expo install \
+
+    expo-secure-store \
+
+    expo-notifications \
+
+    expo-device \
+
+    @react-navigation/native \
+
+    @react-navigation/bottom-tabs \
+
+    @react-navigation/stack \
+
+    react-native-screens \
+
+    react-native-safe-area-context \
+
+    react-native-gesture-handler \
+
+    react-native-reanimated
+
+npm install axios
+app.json configuration
+{
+
+  "expo": {
+
+    "name": "ORBit",
+
+    "slug": "orbit-fabio",
+
+    "version": "1.0.0",
+
+    "orientation": "portrait",
+
+    "icon": "./assets/icon.png",
+
+    "userInterfaceStyle": "dark",
+
+    "splash": {
+
+      "image": "./assets/splash.png",
+
+      "resizeMode": "contain",
+
+      "backgroundColor": "#0a0a0f"
+
+    },
+
+    "ios": {
+
+      "supportsTablet": false,
+
+      "bundleIdentifier": "com.ncs.orbitfabio",
+
+      "buildNumber": "1"
+
+    },
+
+    "android": {
+
+      "adaptiveIcon": {
+
+        "foregroundImage": "./assets/adaptive-icon.png",
+
+        "backgroundColor": "#0a0a0f"
+
+      },
+
+      "package": "com.ncs.orbitfabio"
+
+    },
+
+    "extra": {
+
+      "apiUrl": "https://trading.clermontitstore.com",
+
+      "eas": {
+
+        "projectId": "FILL_IN_AFTER_EAS_INIT"
+
+      }
+
+    },
+
+    "plugins": [
+
+      "expo-notifications",
+
+      "expo-secure-store"
+
+    ]
+
+  }
+
+}
+EAS setup for TestFlight
+cd mobile/ORBitApp
+
+# Login to Expo account
+
+eas login
+
+# Initialize EAS project (links to your Expo account)
+
+eas init
+
+# Configure build profiles
+
+cat > eas.json << 'EOF'
+
+{
+
+  "cli": {
+
+    "version": ">= 10.0.0"
+
+  },
+
+  "build": {
+
+    "development": {
+
+      "developmentClient": true,
+
+      "distribution": "internal",
+
+      "ios": {
+
+        "simulator": true
+
+      }
+
+    },
+
+    "preview": {
+
+      "distribution": "internal",
+
+      "ios": {
+
+        "simulator": false
+
+      }
+
+    },
+
+    "production": {
+
+      "distribution": "store",
+
+      "ios": {
+
+        "autoIncrement": true
+
+      }
+
+    }
+
+  },
+
+  "submit": {
+
+    "production": {
+
+      "ios": {
+
+        "appleId": "YOUR_APPLE_ID@EMAIL.COM",
+
+        "ascAppId": "FILL_IN_AFTER_APP_STORE_CONNECT_SETUP",
+
+        "appleTeamId": "YOUR_APPLE_TEAM_ID"
+
+      }
+
+    }
+
+  }
+
+}
+
+EOF
+
+# Build for TestFlight (runs in EAS cloud — no local Xcode needed)
+
+eas build --platform ios --profile production
+
+# After build completes, submit to TestFlight
+
+eas submit --platform ios --profile production
+App Store Connect setup (one-time)
+Go to appstoreconnect.apple.com
+Create new App → iOS
+Bundle ID: com.ncs.orbitfabio
+App Name: ORBit
+Fill in ascAppId in eas.json with the numeric app ID
+Enable TestFlight → add Don, Clayton, Chris as internal testers
+
+
+PHASE 15 — OPEND SYSTEMD SERVICES
+# Create systemd service for each OpenD instance
+
+for USER in clayton don chris; do
+
+    PORT=$([[ "$USER" == "clayton" ]] && echo 11111 || \
+
+           [[ "$USER" == "don" ]]     && echo 11112 || echo 11113)
+
+    TELNET=$([[ "$USER" == "clayton" ]] && echo 22221 || \
+
+             [[ "$USER" == "don" ]]     && echo 22222 || echo 22223)
+
+    cat > /etc/systemd/system/opend-${USER}.service << EOF
+
+[Unit]
+
+Description=Moomoo OpenD - ${USER^}
+
+After=network.target
+
+StartLimitIntervalSec=0
+
+[Service]
+
+Type=simple
+
+User=ubuntu
+
+WorkingDirectory=/opt/orbit/opend/${USER}
+
+ExecStart=/opt/orbit/opend/${USER}/OpenD -cfg_file=/opt/orbit/opend/${USER}/OpenD.xml
+
+Restart=always
+
+RestartSec=30
+
+StandardOutput=append:/opt/orbit/logs/opend-${USER}.log
+
+StandardError=append:/opt/orbit/logs/opend-${USER}.log
+
+[Install]
+
+WantedBy=multi-user.target
+
+EOF
+
+    echo "Created opend-${USER}.service (port ${PORT}, telnet ${TELNET})"
+
+done
+
+systemctl daemon-reload
+
+OpenD binaries and config files must be installed before enabling these. See ORBIT_NORTHSTAR_BUILD.md for OpenD download and OpenD.xml configuration.
+
+
+PHASE 16 — GIT WORKFLOW
+Branch strategy
+main        ← production, runs on Northstar
+
+dev         ← active development on Mac
+
+feature/*   ← individual features
+Daily dev workflow (on Mac)
+# Start SSH tunnel for Postgres
+
+ssh -L 5433:localhost:5432 ubuntu@192.168.1.116 -N &
+
+# Start local API
+
+source .venv/bin/activate
+
+uvicorn api.main:app --reload --port 8001
+
+# In separate terminal — start frontend dev server
+
+cd frontend && npm run dev
+
+# Opens at http://localhost:5173 with hot reload
+Deploy to Northstar
+# Option A — manual
+
+git push origin main
+
+ssh ubuntu@192.168.1.116 << 'EOF'
+
+cd /opt/orbit
+
+git pull
+
+source .venv/bin/activate
+
+pip install -r requirements.txt  # if deps changed
+
+systemctl restart orbit-api
+
+EOF
+
+# Option B — deploy script (save as deploy.sh in project root)
+
+#!/bin/bash
+
+set -e
+
+echo "Building frontend..."
+
+cd frontend && npm run build && cd ..
+
+echo "Pushing to GitHub..."
+
+git add -A
+
+git commit -m "${1:-Deploy}"
+
+git push origin main
+
+echo "Deploying to Northstar..."
+
+ssh ubuntu@192.168.1.116 << 'REMOTE'
+
+cd /opt/orbit
+
+git pull
+
+source .venv/bin/activate
+
+pip install -r requirements.txt
+
+systemctl restart orbit-api
+
+systemctl reload caddy
+
+echo "Deploy complete"
+
+REMOTE
+Mobile deploy workflow
+# Development build (Expo Go or dev client)
+
+cd mobile/ORBitApp
+
+npx expo start
+
+# TestFlight build
+
+eas build --platform ios --profile production
+
+eas submit --platform ios --profile production
+
+# Check build status
+
+eas build:list
+
+
+FINAL VERIFICATION CHECKLIST
+Run in order after all phases complete.
+
+# 1. Docker and Postgres
+
+docker compose -f /opt/orbit/docker-compose.yml ps
+
+docker exec orbit-postgres psql -U orbit -c "\dt"
+
+# 2. OpenD instances (after OpenD is installed and first login done)
+
+systemctl status opend-clayton opend-don opend-chris
+
+# 3. API service
+
+systemctl status orbit-api
+
+curl http://localhost:8001/docs  # FastAPI Swagger UI
+
+# 4. Caddy + HTTPS
+
+curl https://trading.clermontitstore.com/api/health
+
+# Should return {"status": "ok"}
+
+# 5. Git repo
+
+git log --oneline -5
+
+git remote -v
+
+# 6. EAS (on Mac)
+
+eas whoami
+
+eas build:list
+
+# 7. Full stack smoke test
+
+# Login flow:
+
+curl -X POST https://trading.clermontitstore.com/api/auth/request-otp \
+
+    -H 'Content-Type: application/json' \
+
+    -d '{"phone": "+13525551234"}'
+
+# Check SMS arrives, then verify OTP and confirm JWT returned
+
+
+NOTES FOR CURSOR
+Teardown first, no exceptions. Run Phase 1 discovery, paste output, then run teardown. Don't skip to install phases.
+
+Postgres runs in Docker, everything else is systemd. OpenD and the bot cannot run in Docker — OpenD needs persistent socket connections and file system access that Docker complicates.
+
+Python 3.11 specifically. moomoo-api recommends 3.11. Ubuntu 24 ships 3.12 — install 3.11 via deadsnakes PPA.
+
+--workers 1 on uvicorn. Non-negotiable. Bot asyncio tasks live in-process. Multiple workers breaks everything.
+
+frontend/dist is committed to Git. This is intentional. Northstar pulls and serves the pre-built files via Caddy. No Node.js runtime needed on the server.
+
+OpenD binaries are NOT committed to Git. They go in /opt/orbit/opend/{user}/ directly. Download from moomoo and place manually. .gitignore excludes them.
+
+Secrets never in Git. .env, google_credentials.json, OpenD.xml passwords — all in .gitignore. Copy them to the server manually or via scp.
+
+EAS builds run in the cloud. You don't need Xcode on the Mac Mini for production builds. EAS handles it. You DO need Xcode installed for local development/simulator builds.
+
+Apple credentials for EAS. You need an Apple Developer account ($99/year). EAS will prompt for credentials on first build and store them securely.
+
+Bundle ID is final. com.ncs.orbitfabio — once submitted to App Store Connect this cannot change.
+
