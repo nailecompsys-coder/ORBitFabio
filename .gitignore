@@ -2,3 +2,4 @@
 *.xcuserstate
 xcuserdata/
 node_modules/
+reports/*.txt

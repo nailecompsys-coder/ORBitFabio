@@ -16,6 +16,8 @@ Companion references on your machine (not shipped inside FabioOrb):
 ssh ncs@192.168.1.116
 ```
 
+**Phase 1 discovery (read-only):** run [`scripts/phase1-discovery.sh`](../scripts/phase1-discovery.sh) on the server — see [`scripts/README.md`](../scripts/README.md). Save output under `reports/` (gitignored as `*.txt`) and use it before any teardown.
+
 ---
 
 ## 1. Moomoo OpenD (required)
