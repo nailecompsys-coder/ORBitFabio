@@ -17,10 +17,18 @@
 | **API** | `orbit-api-1` — healthy, internal **8000/tcp** (likely reached via Caddy reverse proxy, not directly on discovery list). |
 | **Browser / VNC** | `orbit-ovtlyr-browser-1` — **`0.0.0.0:6080`**. |
 | **Other Docker** | `project-go-mcp-stack-api-1` on **`:8080`**, `project-go-mcp-stack-worker-1` — **separate project**; any global `docker prune` / Phase 2 teardown in ORBIT_CURSOR_SETUP would affect these unless scoped. |
-| **`/opt` layout** | **`/opt/orbit`** (owned `ncs`), **`/opt/optionsbot`**, **`/opt/Orbit`** (capital O). |
+| **`/opt` layout** | **`/opt/orbit`** — compose project **`orbit`**; see [ORBIT_DOCKER_COMPOSE.server.yml](ORBIT_DOCKER_COMPOSE.server.yml). **`/opt/optionsbot`** — **2026-05-14:** only **`.claude/`** (no compose). **`/opt/Orbit`** — **empty** directory. |
 | **Host Node** | `v18.19.1` / npm `9.2.0` (may be unused if Node work is only in CI or on Mac). |
 | **Host Python** | `3.12.3` (containers may use other versions). |
 | **Cron** | `CRON_TZ=America/New_York`; job **`5 9 * * 1-5 /opt/orbit/scripts/cron_ovtlyr_morning.sh`**. |
+
+## Live compose snapshot (2026-05-14)
+
+Server file: **`/opt/orbit/docker-compose.yml`**. Repo mirror: **[ORBIT_DOCKER_COMPOSE.server.yml](ORBIT_DOCKER_COMPOSE.server.yml)**.
+
+**Services:** `ovtlyr-browser` (6080, build `./scripts/ovtlyr-browser`), `postgres` (bind **`./data/postgres`** → **`/opt/orbit/data/postgres`**, host **5434**), `redis` (6380), `api` (build `api/Dockerfile`, expose 8000, health `/health`), `caddy` (80/443, mounts **`./Caddyfile`**, **`./ui`** → `/srv`, **`./caddy/data`**, **`./caddy/config`**). Named volume: **`ovtlyr-browser-profile`**.
+
+**Note:** Running `cat /opt/orbit/...` on **your Mac** fails (paths exist only on Northstar). Use **`ssh ncs@192.168.1.116 '...'`**.
 
 ## Listening ports (high level)
 

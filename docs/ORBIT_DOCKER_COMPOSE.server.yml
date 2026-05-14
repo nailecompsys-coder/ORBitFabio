@@ -1,0 +1,106 @@
+# Snapshot from Northstar 192.168.1.116 — 2026-05-14
+# Canonical on server: /opt/orbit/docker-compose.yml
+# Project name: orbit (containers appear as orbit-<service>-1)
+
+name: orbit
+
+services:
+  ovtlyr-browser:
+    build:
+      context: ./scripts/ovtlyr-browser
+    volumes:
+      - ./scripts:/work
+      - ovtlyr-browser-profile:/data
+    environment:
+      OVTLYR_VNC_PASSWORD: ${ORBIT_ADMIN_PASSWORD:-orbitdev}
+      OVTLYR_COOKIE_SYNC_SECONDS: "300"
+      OVTLYR_STORAGE_STATE_OUT: /work/.ovtlyr_storage.json
+      OVTLYR_CDP_HTTP: http://127.0.0.1:9222
+    ports:
+      - "0.0.0.0:6080:6080"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: orbit
+      POSTGRES_PASSWORD: ${ORBIT_POSTGRES_PASSWORD:-orbitdev}
+      POSTGRES_DB: orbit
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orbit -d orbit"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: orbit
+      PGPASSWORD: ${ORBIT_POSTGRES_PASSWORD:-orbitdev}
+      PGDATABASE: orbit
+      DATABASE_URL: postgresql://orbit:${ORBIT_POSTGRES_PASSWORD:-orbitdev}@postgres:5432/orbit
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-orbit-dev-secret-change-in-prod}
+      ORBIT_ADMIN_PASSWORD: ${ORBIT_ADMIN_PASSWORD:-orbitdev}
+      APEX_PARAMS_PATH: /app/apex_params.yaml
+      OVTLYR_INGEST_TOKEN: ${OVTLYR_INGEST_TOKEN:-}
+      OVTLYR_BROWSER_CDP_URL: http://ovtlyr-browser:9223
+    depends_on:
+      ovtlyr-browser:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./ui:/srv:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ovtlyr-browser-profile:

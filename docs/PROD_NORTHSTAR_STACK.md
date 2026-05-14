@@ -40,7 +40,7 @@ Official and local doc pointers are in the ORB SSOT file above.
 
 ## 2. Deploy roots on disk (Docker)
 
-**As of Phase 1 discovery:** the running stack (`orbit-api`, `orbit-caddy`, `orbit-postgres`, `orbit-redis`, `orbit-ovtlyr-browser`) is consistent with a compose project under **`/opt/orbit`**. **`/opt/optionsbot`** still exists (legacy CAL note); **`/opt/Orbit`** also present — confirm which repo owns which before editing.
+**As of Phase 1 discovery:** the running stack (`orbit-api`, `orbit-caddy`, `orbit-postgres`, `orbit-redis`, `orbit-ovtlyr-browser`) is defined in **`/opt/orbit/docker-compose.yml`** (snapshot: [ORBIT_DOCKER_COMPOSE.server.yml](ORBIT_DOCKER_COMPOSE.server.yml)). **`/opt/optionsbot`** still exists (legacy; **2026-05-14** only `.claude/`). **`/opt/Orbit`** is an **empty** duplicate dir — see [NORTHSTAR_SAFE_CHANGES.md](NORTHSTAR_SAFE_CHANGES.md).
 
 ```bash
 cd /opt/orbit
