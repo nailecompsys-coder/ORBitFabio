@@ -1,0 +1,11 @@
+{
+  "name": "orbitfabio",
+  "private": true,
+  "description": "Monorepo root — scripts delegate to apps/mobile",
+  "scripts": {
+    "install:mobile": "npm install --prefix apps/mobile",
+    "mobile:start": "npm --prefix apps/mobile run start",
+    "mobile:ios": "npm --prefix apps/mobile run ios",
+    "mobile:prebuild": "npm --prefix apps/mobile run prebuild:ios"
+  }
+}

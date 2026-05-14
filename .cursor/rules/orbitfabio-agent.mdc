@@ -1,0 +1,11 @@
+---
+description: OrbitFabio mobile builds and repo layout — read AGENTS.md for commands
+alwaysApply: true
+---
+
+# OrbitFabio — agent quick reference
+
+- **Build / run iOS:** See repo root [AGENTS.md](../AGENTS.md) (install, `xcodebuild`, `expo run:ios`, Xcode workspace path).
+- **Where things run:** [docs/ENVIRONMENT.md](../docs/ENVIRONMENT.md).
+- **Xcode:** Always **`apps/mobile/ios/OrbitFabio.xcworkspace`**, not the `.xcodeproj`.
+- **After `git clone`:** `cd apps/mobile && npm install && cd ios && pod install`.

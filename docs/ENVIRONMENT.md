@@ -25,6 +25,19 @@ Xcode: set **Signing & Capabilities** to this team; use **Automatic** signing un
 - **Development and internal testing:** Build and archive with **local Xcode** on this Mac; distribute via **TestFlight** (e.g. Don, Clayton, Chris as testers).
 - **App Store (production store listing):** Use **EAS** only if/when you need Expo’s store submission pipeline. Until then, prefer local Xcode for all builds.
 
+## Mobile codebase (Expo + native iOS)
+
+| Item | Location / value |
+|------|------------------|
+| App sources | [`apps/mobile/`](apps/mobile/) |
+| Expo config | [`apps/mobile/app.json`](apps/mobile/app.json) — `slug` `orbitfabio`, display name **OrbitFabio** |
+| Xcode workspace | `apps/mobile/ios/OrbitFabio.xcworkspace` |
+| **Agent / automation commands** | Repo root [`AGENTS.md`](../AGENTS.md) |
+
+**After clone:** `cd apps/mobile && npm install && cd ios && pod install`
+
+**Scripts** (from `apps/mobile`): `npm run start` (Metro), `npm run ios` (`expo run:ios`), `npm run prebuild:ios` (regenerate native from config).
+
 ## PROD server (Northstar)
 
 **Access**
