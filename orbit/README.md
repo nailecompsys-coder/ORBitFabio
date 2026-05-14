@@ -11,6 +11,8 @@ chmod +x orbit/scripts/deploy-api.sh
 ./orbit/scripts/deploy-api.sh ncs@192.168.1.116 /opt/orbit
 ```
 
+Copy or merge **`orbit/Caddyfile`** into **`/opt/orbit/Caddyfile`** on the server when routing changes (the API-only deploy script does not rsync it). Then run **`docker compose restart caddy`** (or **`up -d`**) so the proxy reloads.
+
 SSH to Northstar, then rebuild **only** the `api` service (paths like `/opt/orbit` exist **on the server**, not on your Mac):
 
 ```bash
@@ -25,7 +27,7 @@ docker compose exec api curl -sf http://127.0.0.1:8000/health
 
 ## Phase 2 — Auth (public URL + curl)
 
-Auth routes are **`/auth/*`** on the API. User profile stays under **`/api/users/*`**. If Caddy only proxies `/api/*`, add a route for `/auth/*` (or call the API port directly for testing).
+Auth routes are **`/auth/*`** on the API. User profile stays under **`/api/users/*`**. The repo **`orbit/Caddyfile`** proxies **`/auth/*`** and **`/ws/*`** to `api:8000` without stripping; **`/api/*`** uses `uri strip_prefix /api` before the same upstream.
 
 **Gate — request OTP** (replace phone; use `-k` only if TLS is self-signed):
 
