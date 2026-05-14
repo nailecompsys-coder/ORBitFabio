@@ -75,20 +75,16 @@ Install missing **Simulator runtimes** from **Xcode → Settings → Platforms**
 
 **Default branch:** `main`.
 
-**First-time local setup** (from this project root, if `origin` is not set yet):
+**This workspace:** Git is initialized with `origin` → `git@github.com:nailecompsys-coder/ORBitFabio.git` and `main` is tracking `origin/main`.
+
+**Another machine:** clone with SSH or HTTPS:
 
 ```bash
-git init
-git remote add origin git@github.com:nailecompsys-coder/ORBitFabio.git
-git branch -M main
-git add .
-git commit -m "Initial commit: environment doc and README"
-git push -u origin main
+git clone git@github.com:nailecompsys-coder/ORBitFabio.git
+cd ORBitFabio   # or rename checkout folder to FabioOrb if you prefer
 ```
 
-If GitHub already has a README or license from the empty repo, use `git pull origin main --rebase` after the first `git remote add` (or merge) before pushing.
-
-If the [GitHub CLI](https://cli.github.com/) is installed, `gh repo clone nailecompsys-coder/ORBitFabio` elsewhere is equivalent to cloning by HTTPS/SSH.
+**Empty folder, no `.git` yet** (rare): `git init`, `git remote add origin …`, `git branch -M main`, add/commit, then `git push -u origin main`. If the remote already has commits (e.g. GitHub-added README), run `git pull origin main --rebase` before the first push.
 
 ## API base URLs (fill when wired)
 
