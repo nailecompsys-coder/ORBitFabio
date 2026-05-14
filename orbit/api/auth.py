@@ -60,8 +60,8 @@ async def request_otp(body: OtpRequest) -> dict[str, bool]:
         )
 
     if not TEXTBELT_KEY:
-        # Dev: no SMS provider — still store OTP; operator reads logs if needed.
         print(f"[auth] TEXTBELT_KEY unset; OTP for {body.phone}: {code}", flush=True)
+        return {"sent": True, "dev_code": code}
     else:
         async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.post(

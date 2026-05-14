@@ -12,13 +12,18 @@ export default function Login() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+  const [devCode, setDevCode] = useState('')
 
   const sendOtp = async (e) => {
     e.preventDefault()
     setErr('')
     setLoading(true)
     try {
-      await api.post('/auth/request-otp', { phone })
+      const { data } = await api.post('/auth/request-otp', { phone })
+      if (data.dev_code) {
+        setDevCode(data.dev_code)
+        setCode(data.dev_code)
+      }
       setStep(2)
     } catch (ex) {
       setErr(ex.response?.data?.detail || 'Failed to send code')
@@ -74,6 +79,12 @@ export default function Login() {
         ) : (
           <form onSubmit={verifyOtp}>
             <div className="login-phone-display">{phone}</div>
+            {devCode && (
+              <div style={{ background: 'rgba(255,214,10,0.08)', border: '1px solid rgba(255,214,10,0.3)', borderRadius: 4, padding: '8px 12px', marginBottom: 14, textAlign: 'center' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>DEV MODE — code: </span>
+                <span style={{ color: 'var(--accent-yellow)', fontSize: 20, letterSpacing: '0.15em', fontWeight: 700 }}>{devCode}</span>
+              </div>
+            )}
             <div className="form-group">
               <label className="label">6-digit code</label>
               <input
