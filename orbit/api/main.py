@@ -38,8 +38,8 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/auth")
 
 
-@app.get("/health")
-async def health() -> dict | JSONResponse:
+@app.get("/health", response_model=None)
+async def health():
     ok_db = await health_check_db()
     ok_redis = await health_check_redis()
     if ok_db and ok_redis:
