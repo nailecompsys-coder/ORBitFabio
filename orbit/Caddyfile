@@ -1,37 +1,58 @@
-# ORBit — Docker Compose Caddy (mount: ./Caddyfile → /etc/caddy/Caddyfile).
-# Auth and WebSocket paths pass through unchanged; /api/* strips /api for FastAPI.
-
 trading.clermontitstore.com {
-	encode gzip
+        encode gzip
 
-	handle /auth/* {
-		reverse_proxy api:8000
-	}
+        handle /auth/* {
+                reverse_proxy api:8000
+        }
 
-	handle /ws/* {
-		reverse_proxy api:8000
-	}
+        handle /ws/* {
+                reverse_proxy api:8000
+        }
 
-	handle /api/* {
-		uri strip_prefix /api
-		reverse_proxy api:8000
-	}
+        handle /api/* {
+                uri strip_prefix /api
+                reverse_proxy api:8000
+        }
 
-	handle {
-		root * /srv
-		try_files {path} {path}/ /index.html
-		file_server
-	}
+        handle /novnc/* {
+                uri strip_prefix /novnc
+                reverse_proxy ovtlyr-browser:6080
+        }
 
-	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options nosniff
-		X-Frame-Options DENY
-		Referrer-Policy strict-origin-when-cross-origin
-	}
+        handle /websockify {
+                reverse_proxy ovtlyr-browser:6080
+        }
 
-	log {
-		output stderr
-		format json
-	}
+        handle {
+                root * /srv
+                @assets {
+                        path *.html *.js *.css *.json
+                }
+                header @assets Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+                try_files {path} /index.html
+                file_server
+        }
+}
+
+:80 {
+        encode gzip
+
+        handle /auth/* {
+                reverse_proxy api:8000
+        }
+
+        handle /api/* {
+                uri strip_prefix /api
+                reverse_proxy api:8000
+        }
+
+        handle {
+                root * /srv
+                @assets {
+                        path *.html *.js *.css *.json
+                }
+                header @assets Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+                try_files {path} /index.html
+                file_server
+        }
 }
