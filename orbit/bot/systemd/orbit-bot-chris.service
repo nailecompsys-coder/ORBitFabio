@@ -1,0 +1,17 @@
+[Unit]
+Description=ORBit FABIO bot (Chris — OpenD port 11113)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/orbit
+Environment=PYTHONPATH=/opt/orbit
+Environment=ORBIT_BOT_OPEND_PORT=11113
+# DATABASE_URL, ORBIT_BOT_USER_ID, ORBIT_BOT_TRD_ENV in EnvironmentFile
+EnvironmentFile=-/opt/orbit/.env.bot-chris
+ExecStart=/usr/bin/python3 /opt/orbit/bot/bot_service.py
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
