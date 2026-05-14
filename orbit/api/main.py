@@ -12,6 +12,8 @@ from api.auth import router as auth_router
 from api import users
 from api.db import close_db, health_check_db, health_check_redis, init_db
 from api.routes.bot import router as bot_router
+from api.routes.trades import router as trades_router
+from api.routes.ws import router as ws_router
 
 ALLOWED_ORIGINS = [
     "https://trading.clermontitstore.com",
@@ -40,6 +42,8 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(users.router, prefix="/users")
 app.include_router(bot_router, prefix="/bot")
+app.include_router(ws_router, prefix="/ws")
+app.include_router(trades_router, prefix="/trades")
 
 
 @app.get("/health", response_model=None)

@@ -5,11 +5,20 @@ trading.clermontitstore.com {
                 reverse_proxy api:8000
         }
 
+        handle /bot/* {
+                reverse_proxy api:8000
+        }
+
+        handle /users/* {
+                reverse_proxy api:8000
+        }
+
+        # WebSockets: reverse_proxy forwards Upgrade + Connection by default (Caddy 2).
         handle /ws/* {
                 reverse_proxy api:8000
         }
 
-        handle /bot/* {
+        handle /trades/* {
                 reverse_proxy api:8000
         }
 
@@ -45,11 +54,19 @@ trading.clermontitstore.com {
                 reverse_proxy api:8000
         }
 
+        handle /bot/* {
+                reverse_proxy api:8000
+        }
+
+        handle /users/* {
+                reverse_proxy api:8000
+        }
+
         handle /ws/* {
                 reverse_proxy api:8000
         }
 
-        handle /bot/* {
+        handle /trades/* {
                 reverse_proxy api:8000
         }
 

@@ -27,7 +27,7 @@ docker compose exec api curl -sf http://127.0.0.1:8000/health
 
 ## Phase 2 — Auth (public URL + curl)
 
-Auth routes are **`/auth/*`**. **`/api/*`** uses **`uri strip_prefix /api`** in **`orbit/Caddyfile`**, so **`GET https://…/api/users/me`** hits the app as **`GET /users/me`**. **`/auth/*`**, **`/ws/*`**, and **`/bot/*`** are proxied **without** stripping.
+Auth routes are **`/auth/*`**. **`/api/*`** uses **`uri strip_prefix /api`** in **`orbit/Caddyfile`**, so **`GET https://…/api/users/me`** hits the app as **`GET /users/me`**. **`/auth/*`**, **`/bot/*`**, **`/users/*`**, **`/ws/*`**, and **`/trades/*`** are proxied **without** stripping.
 
 **Gate — request OTP** (replace phone; use `-k` only if TLS is self-signed):
 
@@ -103,6 +103,38 @@ curl -sS -X POST "https://trading.clermontitstore.com/bot/stop" \
 ```
 
 **Gate:** `GET /bot/status` with a valid Bearer token returns **`{"status":"idle"}`** (no session yet) or a JSON object with **`"status"`** and session metadata after **start**.
+
+## Phase 4 — WebSocket feed + trade history
+
+### WebSocket (`/ws/{user_id}`)
+
+Requires a JWT whose **`sub`** matches **`user_id`**. Pass the token as a query parameter (browsers and **`wscat`** do not send HTTP `Authorization` on the WS handshake):
+
+```text
+wss://trading.clermontitstore.com/ws/YOUR_USER_UUID?token=YOUR_JWT
+```
+
+The server polls **`bot_events`** every **500ms** for new rows after connect (cursor = max existing id at connect), pushes each row as JSON, and sends **`{"type":"ping"}`** every **30s**.
+
+**Gate (wscat):** within **30s** you should see a ping (install **`wscat`** globally if needed: `npm install -g wscat`):
+
+```bash
+wscat -c "wss://trading.clermontitstore.com/ws/YOUR_USER_UUID?token=YOUR_JWT"
+# expect: {"type":"ping"}
+```
+
+### Trade history (`POST /trades/history`)
+
+JWT **`Authorization: Bearer`**. Optional query: **`symbol`**, **`status`**, **`limit`** (default **100**, max **500**). Returns up to **`limit`** rows for the current user, newest first.
+
+```bash
+curl -sS -X POST "https://trading.clermontitstore.com/trades/history?symbol=SPY&limit=50" \
+  -H "Authorization: Bearer $JWT"
+```
+
+### Caddy
+
+**`/ws/*`** uses **`reverse_proxy api:8000`** with no URI rewrite. Caddy **v2 forwards `Connection` and `Upgrade` automatically** for WebSocket upgrades; no extra `header_up` is required for the typical upgrade case.
 
 Merge the **`api:`** block from `orbit/docker-compose.yml` into server `/opt/orbit/docker-compose.yml` if you need `TEXTBELT_KEY` or longer `start_period` (already set to **60s** here for migrations).
 
