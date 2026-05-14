@@ -27,7 +27,7 @@ docker compose exec api curl -sf http://127.0.0.1:8000/health
 
 ## Phase 2 — Auth (public URL + curl)
 
-Auth routes are **`/auth/*`** on the API. User profile stays under **`/api/users/*`**. The repo **`orbit/Caddyfile`** proxies **`/auth/*`** and **`/ws/*`** to `api:8000` without stripping; **`/api/*`** uses `uri strip_prefix /api` before the same upstream.
+Auth routes are **`/auth/*`**. **`/api/*`** uses **`uri strip_prefix /api`** in **`orbit/Caddyfile`**, so **`GET https://…/api/users/me`** hits the app as **`GET /users/me`**. **`/auth/*`**, **`/ws/*`**, and **`/bot/*`** are proxied **without** stripping.
 
 **Gate — request OTP** (replace phone; use `-k` only if TLS is self-signed):
 
@@ -54,6 +54,55 @@ curl -sS -X POST "https://trading.clermontitstore.com/auth/verify-otp" \
 curl -sS "https://trading.clermontitstore.com/api/users/me" \
   -H "Authorization: Bearer YOUR_JWT"
 ```
+
+## Phase 3 — Auth completion + bot (DB layer)
+
+### 1. Verify OTP end-to-end (dev: OTP in logs)
+
+```bash
+curl -sS -X POST "https://trading.clermontitstore.com/auth/request-otp" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+1YOUR_PHONE"}'
+```
+
+On the server, read the code from API logs (container name may be `orbit-api-1` or use `docker compose logs api`):
+
+```bash
+docker logs orbit-api-1 --tail 30 2>&1 | grep -E '\[auth\]|OTP'
+# or: cd /opt/orbit && docker compose logs api --tail 40
+```
+
+Verify and capture the JWT:
+
+```bash
+curl -sS -X POST "https://trading.clermontitstore.com/auth/verify-otp" \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"+1YOUR_PHONE","code":"123456"}'
+# Expect: {"token":"...","user_id":"..."}
+```
+
+### 2. Current user (JWT required)
+
+Same as Phase 2: **`GET …/api/users/me`** with **`Authorization: Bearer`**.
+
+### 3–4. Bot session control (JWT required)
+
+**`bot_sessions`** is one row per user (`UNIQUE(user_id)`): **start** upserts `status=running`; **stop** sets `status=stopped`; **status** returns **`{"status":"idle"}`** when there is no row, otherwise session fields (including **`status`**).
+
+```bash
+export JWT=...   # from verify-otp
+
+curl -sS -X POST "https://trading.clermontitstore.com/bot/start" \
+  -H "Authorization: Bearer $JWT"
+
+curl -sS "https://trading.clermontitstore.com/bot/status" \
+  -H "Authorization: Bearer $JWT"
+
+curl -sS -X POST "https://trading.clermontitstore.com/bot/stop" \
+  -H "Authorization: Bearer $JWT"
+```
+
+**Gate:** `GET /bot/status` with a valid Bearer token returns **`{"status":"idle"}`** (no session yet) or a JSON object with **`"status"`** and session metadata after **start**.
 
 Merge the **`api:`** block from `orbit/docker-compose.yml` into server `/opt/orbit/docker-compose.yml` if you need `TEXTBELT_KEY` or longer `start_period` (already set to **60s** here for migrations).
 

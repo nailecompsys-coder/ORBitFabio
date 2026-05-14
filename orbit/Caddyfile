@@ -9,6 +9,10 @@ trading.clermontitstore.com {
                 reverse_proxy api:8000
         }
 
+        handle /bot/* {
+                reverse_proxy api:8000
+        }
+
         handle /api/* {
                 uri strip_prefix /api
                 reverse_proxy api:8000
@@ -38,6 +42,14 @@ trading.clermontitstore.com {
         encode gzip
 
         handle /auth/* {
+                reverse_proxy api:8000
+        }
+
+        handle /ws/* {
+                reverse_proxy api:8000
+        }
+
+        handle /bot/* {
                 reverse_proxy api:8000
         }
 

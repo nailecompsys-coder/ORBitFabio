@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from api.auth import router as auth_router
 from api import users
 from api.db import close_db, health_check_db, health_check_redis, init_db
+from api.routes.bot import router as bot_router
 
 ALLOWED_ORIGINS = [
     "https://trading.clermontitstore.com",
@@ -37,7 +38,8 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
-app.include_router(users.router, prefix="/api/users")
+app.include_router(users.router, prefix="/users")
+app.include_router(bot_router, prefix="/bot")
 
 
 @app.get("/health", response_model=None)
