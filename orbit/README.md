@@ -11,7 +11,7 @@ chmod +x orbit/scripts/deploy-api.sh
 ./orbit/scripts/deploy-api.sh ncs@192.168.1.116 /opt/orbit
 ```
 
-SSH and rebuild **only** the `api` service:
+SSH to Northstar, then rebuild **only** the `api` service (paths like `/opt/orbit` exist **on the server**, not on your Mac):
 
 ```bash
 ssh ncs@192.168.1.116
