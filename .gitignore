@@ -3,3 +3,6 @@
 xcuserdata/
 node_modules/
 reports/*.txt
+__pycache__/
+*.py[cod]
+orbit/.venv-bot/
